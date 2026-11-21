@@ -1,0 +1,4 @@
+*.app/
+BattBar
+.DS_Store
+.build/
