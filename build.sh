@@ -22,5 +22,5 @@ PLIST
 swiftc -O main.swift -o "$APP/Contents/MacOS/BattBar" -framework AppKit -framework IOKit
 codesign --force -s - "$APP"
 pkill -x BattBar 2>/dev/null || true
-open "$APP"
+sleep 1; open "$APP"
 echo "OK: $APP"

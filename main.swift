@@ -33,6 +33,29 @@ func readBattery() -> BatteryInfo? {
     return nil
 }
 
+struct BatteryHealth {
+    var cycles: Int
+    var maxMah: Int
+    var designMah: Int
+    var percent: Int { designMah > 0 ? Int((Double(maxMah) * 100 / Double(designMah)).rounded()) : 0 }
+}
+
+/// Циклы и реальная ёмкость из AppleSmartBattery.
+func readHealth() -> BatteryHealth? {
+    let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBattery"))
+    guard service != 0 else { return nil }
+    defer { IOObjectRelease(service) }
+    func int(_ key: String) -> Int? {
+        IORegistryEntryCreateCFProperty(service, key as CFString, kCFAllocatorDefault, 0)?
+            .takeRetainedValue() as? Int
+    }
+    guard let cycles = int("CycleCount"),
+          let maxMah = int("AppleRawMaxCapacity"),
+          let design = int("DesignCapacity")
+    else { return nil }
+    return BatteryHealth(cycles: cycles, maxMah: maxMah, designMah: design)
+}
+
 @discardableResult
 func runBatt(_ args: [String]) -> String {
     let p = Process()
@@ -201,6 +224,9 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let state = b.charging ? "заряжается" : (b.plugged ? "от сети, не заряжается" : "от батареи")
             info("Заряд \(b.pct)% · \(state)")
         }
+        if let h = readHealth() {
+            info("Ёмкость \(h.percent)% (\(h.maxMah) из \(h.designMah) мАч) · циклов \(h.cycles)")
+        }
         info("Предел сейчас: " + (limit.map { "\($0)%" } ?? "не прочитан (batt не отвечает)"))
         if pending > 0 { info("Разово до \(pending)%, потом снова \(base)%") }
 
@@ -251,6 +277,16 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc func quit() { NSApp.terminate(nil) }
+}
+
+/// `BattBar --print-health` печатает ёмкость и циклы и выходит.
+if CommandLine.arguments.contains("--print-health") {
+    if let h = readHealth() {
+        print("Ёмкость \(h.percent)% (\(h.maxMah) из \(h.designMah) мАч) · циклов \(h.cycles)")
+    } else {
+        print("Нет данных о батарее")
+    }
+    exit(0)
 }
 
 let app = NSApplication.shared
