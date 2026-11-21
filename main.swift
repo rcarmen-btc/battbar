@@ -206,17 +206,26 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         battery = readBattery()
         menu.removeAllItems()
-        func info(_ s: String) {
+        // Без серого текста: все строки включены и обычного цвета,
+        // строки-сведения просто ничего не делают по нажатию, заголовки — жирные.
+        menu.autoenablesItems = false
+        func info(_ s: String, header: Bool = false) {
             let i = NSMenuItem(title: s, action: nil, keyEquivalent: "")
-            i.isEnabled = false
+            i.isEnabled = true
+            if header {
+                i.attributedTitle = NSAttributedString(string: s, attributes: [
+                    .font: NSFont.systemFont(ofSize: NSFont.menuFont(ofSize: 0).pointSize, weight: .semibold),
+                    .foregroundColor: NSColor.labelColor,
+                ])
+            }
             menu.addItem(i)
         }
-        func action(_ s: String, _ sel: Selector, tag: Int = 0, on: Bool = false, enabled: Bool = true) {
-            let i = NSMenuItem(title: s, action: enabled ? sel : nil, keyEquivalent: "")
+        func action(_ s: String, _ sel: Selector, tag: Int = 0, on: Bool = false) {
+            let i = NSMenuItem(title: s, action: sel, keyEquivalent: "")
             i.target = self
             i.tag = tag
             i.state = on ? .on : .off
-            i.isEnabled = enabled
+            i.isEnabled = true
             menu.addItem(i)
         }
 
@@ -233,19 +242,22 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(.separator())
         let pct = battery?.pct ?? 0
         for t in [80, 100] {
-            action("Один раз до \(t)%", #selector(oneTime(_:)), tag: t,
-                   on: pending == t, enabled: pct < t)
+            if pct < t || pending == t {
+                action("Один раз до \(t)%", #selector(oneTime(_:)), tag: t, on: pending == t)
+            } else {
+                info("Один раз до \(t)% — уже заряжено")
+            }
         }
         if pending > 0 { action("Отменить разовую зарядку", #selector(cancelOneTime)) }
 
         menu.addItem(.separator())
-        info("Держать всегда:")
+        info("Держать всегда:", header: true)
         for v in [50, 60, 80, 100] {
             action("   \(v)%", #selector(setBase(_:)), tag: v, on: pending == 0 && base == v)
         }
 
         menu.addItem(.separator())
-        info("Напомнить поставить на зарядку:")
+        info("Напомнить поставить на зарядку:", header: true)
         for v in [20, 30] {
             action("   при \(v)%", #selector(setAlert(_:)), tag: v, on: alertAt == v)
         }
